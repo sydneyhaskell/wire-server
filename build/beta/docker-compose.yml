@@ -27,39 +27,40 @@
 version: '3'
 services:
   # Data services
-  # cassandra:
-  #   hostname: cassandra
-  #   image: cassandra:3.11.0
-  #   command: /bin/bash -c "sleep 1 && echo ' -- Pausing to let system catch up ... -->' && /docker-entrypoint.sh cassandra -f"
-  #   ports:
-  #     - 7000:7000
-  #     - 7001:7001
-  #     - 7199:7199
-  #     - 9042:9042
-  #     - 9160:9160
-  # redis:
-  #   image: "redis:alpine"
+  cassandra:
+    hostname: cassandra
+    image: cassandra:3.11
+    command: /bin/bash -c "sleep 1 && echo ' -- Pausing to let system catch up ... -->' && /docker-entrypoint.sh cassandra -f"
+    ports:
+      - 7000:7000
+      - 7001:7001
+      - 7199:7199
+      - 9042:9042
+      - 9160:9160
+  redis:
+    image: "redis:alpine"
 
-  # brig:
-  #   env_file: ../../services/.env
-  #   build:
-  #     context: ../../services/brig
-  #     args:
-  #       service: brig
-  #   TODO: Create some random keys and turn secrets
-  #   entrypoint: 'sh -c "while true; do brig -c /config/brig.yml; sleep 5; done"'
-  #   ports:
-  #     - 8082:8082
-  #   volumes:
-  #     - ./conf:/config
-  # brig-schema:
-  #   env_file: ../../services/.env
-  #   build:
-  #     context: ../../services/brig
-  #     args:
-  #       service: brig
-  #       executable: brig-schema
-  #   entrypoint: 'sh -c "while true; do brig-schema --host cassandra --keyspace brig_test --replication-factor 1; sleep 5; done"'
+  # Stateless services
+  brig:
+    env_file: ../../services/.env
+    build:
+      context: ../../services/brig
+      args:
+        service: brig
+    #TODO: Create some random keys and turn secrets
+    entrypoint: 'sh -c "while true; do brig -c /config/brig.yml; sleep 5; done"'
+    ports:
+      - 8082:8082
+    volumes:
+      - ./conf:/config
+  brig-schema:
+    env_file: ../../services/.env
+    build:
+      context: ../../services/brig
+      args:
+        service: brig
+        executable: brig-schema
+    entrypoint: 'sh -c "while true; do brig-schema --host cassandra --keyspace brig_test --replication-factor 1; sleep 5; done"'
 
   cannon:
     env_file: ../../services/.env
@@ -69,7 +70,7 @@ services:
         service: cannon
     entrypoint: 'sh -c "while true; do cannon -c /config/cannon.yml; sleep 5; done"'
     ports:
-      - 8082:8082
+      - 8081:8081
     volumes:
       - ./conf:/config
 
@@ -85,42 +86,42 @@ services:
     volumes:
       - ./conf:/config
 
-  # galley:
-  #   env_file: ../../services/.env
-  #   build:
-  #     context: ../alpine
-  #     args:
-  #       service: galley
-  #   entrypoint: 'sh -c "while true; do galley -c /config/galley.yml; sleep 5; done"'
-  #   ports:
-  #     - 8085:8085
-  #   volumes:
-  #     - ./conf:/config
-  # galley-schema:
-  #   env_file: ../../services/.env
-  #   build:
-  #     context: ../alpine
-  #     args:
-  #       service: galley
-  #       executable: galley-schema
-  #   entrypoint: 'sh -c "while true; do galley-schema --host cassandra --keyspace galley_test --replication-factor 1; sleep 10; done"'
+  galley:
+    env_file: ../../services/.env
+    build:
+      context: ../alpine
+      args:
+        service: galley
+    entrypoint: 'sh -c "while true; do galley -c /config/galley.yml; sleep 5; done"'
+    ports:
+      - 8085:8085
+    volumes:
+      - ./conf:/config
+  galley-schema:
+    env_file: ../../services/.env
+    build:
+      context: ../alpine
+      args:
+        service: galley
+        executable: galley-schema
+    entrypoint: 'sh -c "while true; do galley-schema --host cassandra --keyspace galley_test --replication-factor 1; sleep 10; done"'
 
-  # gundeck:
-  #   env_file: ../../services/.env
-  #   build:
-  #     context: ../alpine
-  #     args:
-  #       service: gundeck
-  #   entrypoint: 'sh -c "while true; do gundeck -c /config/gundeck.yml; sleep 5; done"'
-  #   ports:
-  #     - 8086:8086
-  #   volumes:
-  #     - ./conf:/config
-  # gundeck-schema:
-  #   env_file: ../../services/.env
-  #   build:
-  #     context: ../alpine
-  #     args:
-  #       service: gundeck
-  #       executable: gundeck-schema
-  #   entrypoint: 'sh -c "while true; do gundeck-schema --host cassandra --keyspace gundeck_test --replication-factor 1; sleep 5; done"'
+  gundeck:
+    env_file: ../../services/.env
+    build:
+      context: ../alpine
+      args:
+        service: gundeck
+    entrypoint: 'sh -c "while true; do gundeck -c /config/gundeck.yml; sleep 5; done"'
+    ports:
+      - 8086:8086
+    volumes:
+      - ./conf:/config
+  gundeck-schema:
+    env_file: ../../services/.env
+    build:
+      context: ../alpine
+      args:
+        service: gundeck
+        executable: gundeck-schema
+    entrypoint: 'sh -c "while true; do gundeck-schema --host cassandra --keyspace gundeck_test --replication-factor 1; sleep 5; done"'
