@@ -39,6 +39,7 @@ services:
       - 9160:9160
   redis:
     image: "redis:alpine"
+
   # localstack_s3:
   #   image: localstack/localstack
   #   ports:
@@ -131,12 +132,14 @@ services:
   gundeck:
     env_file: ../../services/.env
     build:
-      context: ../alpine
+      context: ../..
+      dockerfile: build/alpine/Dockerfile
       args:
         service: gundeck
+        executable: gundeck
     entrypoint: 'sh -c "while true; do gundeck -c /config/gundeck.yml; sleep 5; done"'
     links:
-      - localstack_sqs:eu-west-1.queue.amazonaws.com 
+      - localstack_sqs:sqs.eu-west-1.amazonaws.com
     ports:
       - 8086:8086
     volumes:
@@ -144,8 +147,9 @@ services:
   # gundeck-schema:
   #   env_file: ../../services/.env
   #   build:
-  #     context: ../alpine
+  #     context: ../..
+  #     dockerfile: build/alpine/Dockerfile
   #     args:
   #       service: gundeck
   #       executable: gundeck-schema
-  #   entrypoint: 'sh -c "while true; do gundeck-schema --host cassandra --keyspace gundeck_test --replication-factor 1; sleep 5; done"'
+  #   entrypoint: 'sh -c "until gundeck-schema --host cassandra --keyspace gundeck_test --replication-factor 1; do echo \"DB still not up, retrying in 5 secs\"; sleep 5; done"'
