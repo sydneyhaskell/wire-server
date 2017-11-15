@@ -151,7 +151,7 @@ newEnv o = do
     mtr <- Metrics.metrics
     lgr <- Log.new $ defSettings & setOutput StdOut . setFormat Nothing
     cas <- initCassandra o lgr
-    mgr <- initHttpManager
+    mgr <- initHttpManager (Opt.optSkipVerifySSL o)
     ext <- initExtGetManager
     utp <- loadUserTemplates o
     ptp <- loadProviderTemplates o
@@ -263,14 +263,16 @@ initZAuth o = do
         (_,     Nothing) -> error ("No public key in: " ++ publicKeys)
         (Just s, Just p) -> ZAuth.mkEnv s p $ Opt.authSettings zOpts
 
-initHttpManager :: IO Manager
-initHttpManager = do
+initHttpManager :: Bool -> IO Manager
+initHttpManager skipVerify = do
     ctx <- SSL.context
     SSL.contextAddOption ctx SSL_OP_NO_SSLv2
     SSL.contextAddOption ctx SSL_OP_NO_SSLv3
     SSL.contextSetCiphers ctx "HIGH"
     SSL.contextSetVerificationMode ctx $
-        SSL.VerifyPeer True True Nothing
+        if skipVerify
+            then SSL.VerifyNone
+            else SSL.VerifyPeer True True Nothing
     SSL.contextLoadSystemCerts ctx
     -- Unfortunately, there are quite some AWS services we talk to
     -- (e.g. SES, Dynamo) that still only support TLSv1.

@@ -6,10 +6,14 @@ aws:
   # TODO: Check AWS loadCredentialsFromEnv
   keyId: foo
   secretKey: bar
-  s3Bucket: cargoholdlocal
-  cfDomain: bla
-  cfKeyPairId: bla
+  s3Bucket: local-cargohold
+  cfDomain: local-cargohold
+  cfKeyPairId: local-cargohold
   cfPrivateKey: config/cf.pem
 
 settings:
   maxTotalBytes: 27262976
+
+# TODO: Set this to true _ONLY_ for testing purposes
+#       as this causes SSL certicates not to be verified
+skipVerifySSL: true

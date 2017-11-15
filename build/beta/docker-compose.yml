@@ -43,7 +43,8 @@ services:
   # localstack_s3:
   #   image: localstack/localstack
   #   ports:
-  #     - "443"
+  #     - "10000:8080"
+  #     - "11000:443"
   #   environment:
   #     - USE_SSL=TRUE
   #     - DEBUG=1
@@ -53,31 +54,49 @@ services:
   localstack_sqs:
     image: localstack/localstack
     ports:
-      - "8080:8080"
-      - "10000:443"
+      - "10001:8080"
+      - "11001:443"
     environment:
       - USE_SSL=TRUE
       - DEBUG=1
       - DEFAULT_REGION=eu-west-1
       - SERVICES=sqs:443
 
-  # Stateless services
-  # brig:
-  #   env_file: ../../services/.env
-  #   build:
-  #     context: ../../services/brig
-  #     args:
-  #       service: brig
-  #   #TODO: Create some random keys and turn secrets
-  #   entrypoint: 'sh -c "while true; do brig -c /config/brig.yml; sleep 5; done"'
-  #   ports:
-  #     - 8082:8082
-  #   volumes:
-  #     - ./conf:/config
+  localstack_dynamo:
+    image: localstack/localstack
+    ports:
+      - "10002:8080"
+      - "11002:443"
+    environment:
+      - USE_SSL=TRUE
+      - DEBUG=1
+      - DEFAULT_REGION=eu-west-1
+      - SERVICES=dynamo:443
+
+  # # Stateless services
+  brig:
+    env_file: ../../services/.env
+    build:
+      context: ../..
+      dockerfile: services/brig/Dockerfile
+      args:
+        service: brig
+    #TODO: Create some random keys and turn secrets
+    entrypoint: 'sh -c "while true; do brig -c /config/brig.yml; sleep 5; done"'
+    # TODO: Create queue during startup too
+    # aws --no-verify --endpoint-url="https://localhost:11001" sqs create-queue --queue-name local-brig-events
+    # aws --no-verify --endpoint-url="https://localhost:11001" sqs create-queue --queue-name local-brig-events-internal
+    links:
+      - localstack_sqs:sqs.eu-west-1.amazonaws.com
+    ports:
+      - 8082:8082
+    volumes:
+      - ./conf:/config
   # brig-schema:
   #   env_file: ../../services/.env
   #   build:
-  #     context: ../../services/brig
+  #     context: ../..
+  #     dockerfile: services/brig/Dockerfile
   #     args:
   #       service: brig
   #       executable: brig-schema
@@ -86,7 +105,8 @@ services:
   # cannon:
   #   env_file: ../../services/.env
   #   build:
-  #     context: ../alpine
+  #     context: ../..
+  #     dockerfile: build/alpine/Dockerfile
   #     args:
   #       service: cannon
   #   entrypoint: 'sh -c "while true; do cannon -c /config/cannon.yml; sleep 5; done"'
@@ -98,12 +118,16 @@ services:
   # cargohold:
   #   env_file: ../../services/.env
   #   build:
-  #     context: ../alpine
+  #     context: ../..
+  #     dockerfile: build/alpine/Dockerfile
   #     args:
   #       service: cargohold
   #   entrypoint: 'sh -c "while true; do cargohold -c /config/cargohold.yml; sleep 5; done"'
+  #   # TODO: Allow skipping cloudfront and getting an S3 link only
+  #   # TODO: Create bucket during startup too
+  #   # aws --no-verify --endpoint-url="https://localhost:11000" s3api create-bucket --bucket local-cargohold
   #   links:
-  #     - localstack_s3:cargoholdlocal.s3-eu-west-1.amazonaws.com
+  #     - localstack_s3:local-cargohold.s3-eu-west-1.amazonaws.com
   #   ports:
   #     - 8084:8084
   #   volumes:
@@ -112,7 +136,8 @@ services:
   # galley:
   #   env_file: ../../services/.env
   #   build:
-  #     context: ../alpine
+  #     context: ../..
+  #     dockerfile: build/alpine/Dockerfile
   #     args:
   #       service: galley
   #   entrypoint: 'sh -c "while true; do galley -c /config/galley.yml; sleep 5; done"'
@@ -123,27 +148,30 @@ services:
   # galley-schema:
   #   env_file: ../../services/.env
   #   build:
-  #     context: ../alpine
+  #     context: ../..
+  #     dockerfile: build/alpine/Dockerfile
   #     args:
   #       service: galley
   #       executable: galley-schema
-  #   entrypoint: 'sh -c "while true; do galley-schema --host cassandra --keyspace galley_test --replication-factor 1; sleep 10; done"'
+  #   entrypoint: 'sh -c "until galley-schema --host cassandra --keyspace galley_test --replication-factor 1; do echo \"DB still not up, retrying in 5 secs\"; sleep 5; done"'
 
-  gundeck:
-    env_file: ../../services/.env
-    build:
-      context: ../..
-      dockerfile: build/alpine/Dockerfile
-      args:
-        service: gundeck
-        executable: gundeck
-    entrypoint: 'sh -c "while true; do gundeck -c /config/gundeck.yml; sleep 5; done"'
-    links:
-      - localstack_sqs:sqs.eu-west-1.amazonaws.com
-    ports:
-      - 8086:8086
-    volumes:
-      - ./conf:/config
+  # gundeck:
+  #   env_file: ../../services/.env
+  #   build:
+  #     context: ../..
+  #     dockerfile: build/alpine/Dockerfile
+  #     args:
+  #       service: gundeck
+  #       executable: gundeck
+  #   entrypoint: 'sh -c "while true; do gundeck -c /config/gundeck.yml; sleep 5; done"'
+  #   # TODO: Create queue during startup too
+  #   # aws --no-verify --endpoint-url="https://localhost:11001" sqs create-queue --queue-name local-gundeck-events
+  #   links:
+  #     - localstack_sqs:sqs.eu-west-1.amazonaws.com
+  #   ports:
+  #     - 8086:8086
+  #   volumes:
+  #     - ./conf:/config
   # gundeck-schema:
   #   env_file: ../../services/.env
   #   build:

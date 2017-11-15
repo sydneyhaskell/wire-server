@@ -87,3 +87,7 @@ optSettings:
     stdDev: 5
     retryAfter: 1
   setDefaultLocale: en
+
+# TODO: Set this to true _ONLY_ for testing purposes
+#       as this causes SSL certicates not to be verified
+optSkipVerifySSL: true

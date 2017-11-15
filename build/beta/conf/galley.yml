@@ -16,9 +16,9 @@ gundeck:
   host: gundeck
   port: 8086
 
-journal:
-  queueName: integration-team-events.fifo
-  region: eu-west-1
+# journal:
+#   queueName: integration-team-events.fifo
+#   region: eu-west-1
 
 settings:
   httpPoolSize: 128

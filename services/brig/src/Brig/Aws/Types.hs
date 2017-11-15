@@ -112,11 +112,11 @@ config reg acc squ iqu blt pkt =
     in Config ses sqs ddb sqq iqq blt pkt
   where
     regionSettings Ireland =
-        ( Aws.sqs Aws.HTTPS Aws.sqsEndpointEu False
+        ( Aws.sqs Aws.HTTPS Aws.sqsEndpointEu { Aws.endpointHost = "sqs.eu-west-1.amazonaws.com" } False
         , Aws.ddbHttps Aws.ddbEuWest1
         )
     regionSettings Frankfurt =
-        ( Aws.sqs Aws.HTTPS Aws.sqsEndpointEu { Aws.endpointHost = "eu-central-1.queue.amazonaws.com" } False
+        ( Aws.sqs Aws.HTTPS Aws.sqsEndpointEu { Aws.endpointHost = "sqs.eu-central-1.amazonaws.com" } False
         , Aws.ddbHttps Aws.ddbEuCentral1
         )
 

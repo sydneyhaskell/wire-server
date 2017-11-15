@@ -13,3 +13,7 @@ aws:
 
 settings:
   maxTotalBytes: 27262976
+
+# TODO: Set this to true _ONLY_ for testing purposes
+#       as this causes SSL certicates not to be verified
+skipVerifySSL: true
