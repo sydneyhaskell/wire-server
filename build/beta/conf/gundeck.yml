@@ -16,10 +16,10 @@ redis:
 # For more details, check amazonka's documentation at:
 # https://hackage.haskell.org/package/amazonka-1.4.5/docs/Network-AWS.html#t:Credentials
 aws:
-  queueName: integration-gundeck-events
+  queueName: local-gundeck-events
   region: eu-west-1
-  account: "<insert-account-number-here>"
-  arnEnv: test
+  account: local
+  arnEnv: local
 
 fallback:
   skipFallbacks: true

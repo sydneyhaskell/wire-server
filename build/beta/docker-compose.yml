@@ -39,28 +39,48 @@ services:
       - 9160:9160
   redis:
     image: "redis:alpine"
+  # localstack_s3:
+  #   image: localstack/localstack
+  #   ports:
+  #     - "443"
+  #   environment:
+  #     - USE_SSL=TRUE
+  #     - DEBUG=1
+  #     - DEFAULT_REGION=eu-west-1
+  #     - SERVICES=s3:443
+
+  localstack_sqs:
+    image: localstack/localstack
+    ports:
+      - "8080:8080"
+      - "10000:443"
+    environment:
+      - USE_SSL=TRUE
+      - DEBUG=1
+      - DEFAULT_REGION=eu-west-1
+      - SERVICES=sqs:443
 
   # Stateless services
-  brig:
-    env_file: ../../services/.env
-    build:
-      context: ../../services/brig
-      args:
-        service: brig
-    #TODO: Create some random keys and turn secrets
-    entrypoint: 'sh -c "while true; do brig -c /config/brig.yml; sleep 5; done"'
-    ports:
-      - 8082:8082
-    volumes:
-      - ./conf:/config
-  brig-schema:
-    env_file: ../../services/.env
-    build:
-      context: ../../services/brig
-      args:
-        service: brig
-        executable: brig-schema
-    entrypoint: 'sh -c "until brig-schema --host cassandra --keyspace brig_test --replication-factor 1; do echo \"DB still not up, retrying in 5 secs\"; sleep 5; done"'
+  # brig:
+  #   env_file: ../../services/.env
+  #   build:
+  #     context: ../../services/brig
+  #     args:
+  #       service: brig
+  #   #TODO: Create some random keys and turn secrets
+  #   entrypoint: 'sh -c "while true; do brig -c /config/brig.yml; sleep 5; done"'
+  #   ports:
+  #     - 8082:8082
+  #   volumes:
+  #     - ./conf:/config
+  # brig-schema:
+  #   env_file: ../../services/.env
+  #   build:
+  #     context: ../../services/brig
+  #     args:
+  #       service: brig
+  #       executable: brig-schema
+  #   entrypoint: 'sh -c "until brig-schema --host cassandra --keyspace brig_test --replication-factor 1; do echo \"DB still not up, retrying in 5 secs\"; sleep 5; done"'
 
   # cannon:
   #   env_file: ../../services/.env
@@ -81,6 +101,8 @@ services:
   #     args:
   #       service: cargohold
   #   entrypoint: 'sh -c "while true; do cargohold -c /config/cargohold.yml; sleep 5; done"'
+  #   links:
+  #     - localstack_s3:cargoholdlocal.s3-eu-west-1.amazonaws.com
   #   ports:
   #     - 8084:8084
   #   volumes:
@@ -106,17 +128,19 @@ services:
   #       executable: galley-schema
   #   entrypoint: 'sh -c "while true; do galley-schema --host cassandra --keyspace galley_test --replication-factor 1; sleep 10; done"'
 
-  # gundeck:
-  #   env_file: ../../services/.env
-  #   build:
-  #     context: ../alpine
-  #     args:
-  #       service: gundeck
-  #   entrypoint: 'sh -c "while true; do gundeck -c /config/gundeck.yml; sleep 5; done"'
-  #   ports:
-  #     - 8086:8086
-  #   volumes:
-  #     - ./conf:/config
+  gundeck:
+    env_file: ../../services/.env
+    build:
+      context: ../alpine
+      args:
+        service: gundeck
+    entrypoint: 'sh -c "while true; do gundeck -c /config/gundeck.yml; sleep 5; done"'
+    links:
+      - localstack_sqs:eu-west-1.queue.amazonaws.com 
+    ports:
+      - 8086:8086
+    volumes:
+      - ./conf:/config
   # gundeck-schema:
   #   env_file: ../../services/.env
   #   build:
