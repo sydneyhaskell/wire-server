@@ -22,7 +22,7 @@ gundeck:
 
 aws:
   region: eu-west-1
-  account: local
+  account: queue
   sesQueue: local-brig-events
   internalQueue: local-brig-events-internal
   blacklistTable: local-brig-userkey-blacklist

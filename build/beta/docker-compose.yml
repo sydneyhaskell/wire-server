@@ -27,29 +27,29 @@
 version: '3'
 services:
   # Data services
-  cassandra:
-    hostname: cassandra
-    image: cassandra:3.11
-    command: /bin/bash -c "sleep 1 && echo ' -- Pausing to let system catch up ... -->' && /docker-entrypoint.sh cassandra -f"
-    ports:
-      - 7000:7000
-      - 7001:7001
-      - 7199:7199
-      - 9042:9042
-      - 9160:9160
-  redis:
-    image: "redis:alpine"
-
-  # localstack_s3:
-  #   image: localstack/localstack
+  # cassandra:
+  #   hostname: cassandra
+  #   image: cassandra:3.11
+  #   command: /bin/bash -c "sleep 1 && echo ' -- Pausing to let system catch up ... -->' && /docker-entrypoint.sh cassandra -f"
   #   ports:
-  #     - "10000:8080"
-  #     - "11000:443"
-  #   environment:
-  #     - USE_SSL=TRUE
-  #     - DEBUG=1
-  #     - DEFAULT_REGION=eu-west-1
-  #     - SERVICES=s3:443
+  #     - 5000:7000
+  #     - 5001:7001
+  #     - 5199:7199
+  #     - 7042:9042
+  #     - 7160:9160
+  # redis:
+  #   image: "redis:alpine"
+
+  localstack_s3:
+    image: localstack/localstack
+    ports:
+      - "10000:8080"
+      - "11000:443"
+    environment:
+      - USE_SSL=TRUE
+      - DEBUG=1
+      - DEFAULT_REGION=eu-west-1
+      - SERVICES=s3:443
 
   localstack_sqs:
     image: localstack/localstack
@@ -62,7 +62,7 @@ services:
       - DEFAULT_REGION=eu-west-1
       - SERVICES=sqs:443
 
-  localstack_dynamo:
+  localstack_dynamodb:
     image: localstack/localstack
     ports:
       - "10002:8080"
@@ -71,27 +71,37 @@ services:
       - USE_SSL=TRUE
       - DEBUG=1
       - DEFAULT_REGION=eu-west-1
-      - SERVICES=dynamo:443
+      - SERVICES=dynamodb:443
 
-  # # Stateless services
-  brig:
-    env_file: ../../services/.env
-    build:
-      context: ../..
-      dockerfile: services/brig/Dockerfile
-      args:
-        service: brig
-    #TODO: Create some random keys and turn secrets
-    entrypoint: 'sh -c "while true; do brig -c /config/brig.yml; sleep 5; done"'
-    # TODO: Create queue during startup too
-    # aws --no-verify --endpoint-url="https://localhost:11001" sqs create-queue --queue-name local-brig-events
-    # aws --no-verify --endpoint-url="https://localhost:11001" sqs create-queue --queue-name local-brig-events-internal
-    links:
-      - localstack_sqs:sqs.eu-west-1.amazonaws.com
+  localstack_ses:
+    image: localstack/localstack
     ports:
-      - 8082:8082
-    volumes:
-      - ./conf:/config
+      - "10003:8080"
+      - "11003:443"
+    environment:
+      - USE_SSL=TRUE
+      - DEBUG=1
+      - DEFAULT_REGION=eu-west-1
+      - SERVICES=ses:443
+
+  # aws_cli:
+  #   image: mesosphere/aws-cli
+  #   links:
+  #     - localstack_sqs:sqs
+  #     - localstack_dynamodb:dynamodb
+  #     - localstack_s3:s3
+  #   depends_on:
+  #     - localstack_s3
+  #     - localstack_ses
+  #     - localstack_sqs
+  #     - localstack_dynamodb
+  #   entrypoint: /scripts/aws.sh
+  #   volumes:
+  #     - ./init:/scripts
+
+  # #  
+  # # Cassandra init containers
+  # #
   # brig-schema:
   #   env_file: ../../services/.env
   #   build:
@@ -101,6 +111,47 @@ services:
   #       service: brig
   #       executable: brig-schema
   #   entrypoint: 'sh -c "until brig-schema --host cassandra --keyspace brig_test --replication-factor 1; do echo \"DB still not up, retrying in 5 secs\"; sleep 5; done"'
+  # galley-schema:
+  #   env_file: ../../services/.env
+  #   build:
+  #     context: ../..
+  #     dockerfile: build/alpine/Dockerfile
+  #     args:
+  #       service: galley
+  #       executable: galley-schema
+  #   entrypoint: 'sh -c "until galley-schema --host cassandra --keyspace galley_test --replication-factor 1; do echo \"DB still not up, retrying in 5 secs\"; sleep 5; done"'
+  # gundeck-schema:
+  #   env_file: ../../services/.env
+  #   build:
+  #     context: ../..
+  #     dockerfile: build/alpine/Dockerfile
+  #     args:
+  #       service: gundeck
+  #       executable: gundeck-schema
+  #   entrypoint: 'sh -c "until gundeck-schema --host cassandra --keyspace gundeck_test --replication-factor 1; do echo \"DB still not up, retrying in 5 secs\"; sleep 5; done"'
+
+  #
+  # Stateless services
+  #
+  # brig:
+  #   env_file: ../../services/.env
+  #   build:
+  #     context: ../..
+  #     dockerfile: services/brig/Dockerfile
+  #     args:
+  #       service: brig
+  #   #TODO: Create some random keys and turn secrets
+  #   entrypoint: 'sh -c "while true; do brig -c /config/brig.yml; sleep 5; done"'
+  #   links:
+  #     # NOTE: the used aws library uses the "old" name eu-west-1.queue.amazonaws.com
+  #     - localstack_sqs:sqs.eu-west-1.amazonaws.com
+  #     - localstack_sqs:eu-west-1.queue.amazonaws.com
+  #     - localstack_dynamodb:dynamodb.eu-west-1.amazonaws.com
+  #     - localstack_ses:email.eu-west-1.amazonaws.com
+  #   ports:
+  #     - 8082:8082
+  #   volumes:
+  #     - ./conf:/config
 
   # cannon:
   #   env_file: ../../services/.env
@@ -124,8 +175,6 @@ services:
   #       service: cargohold
   #   entrypoint: 'sh -c "while true; do cargohold -c /config/cargohold.yml; sleep 5; done"'
   #   # TODO: Allow skipping cloudfront and getting an S3 link only
-  #   # TODO: Create bucket during startup too
-  #   # aws --no-verify --endpoint-url="https://localhost:11000" s3api create-bucket --bucket local-cargohold
   #   links:
   #     - localstack_s3:local-cargohold.s3-eu-west-1.amazonaws.com
   #   ports:
@@ -145,15 +194,6 @@ services:
   #     - 8085:8085
   #   volumes:
   #     - ./conf:/config
-  # galley-schema:
-  #   env_file: ../../services/.env
-  #   build:
-  #     context: ../..
-  #     dockerfile: build/alpine/Dockerfile
-  #     args:
-  #       service: galley
-  #       executable: galley-schema
-  #   entrypoint: 'sh -c "until galley-schema --host cassandra --keyspace galley_test --replication-factor 1; do echo \"DB still not up, retrying in 5 secs\"; sleep 5; done"'
 
   # gundeck:
   #   env_file: ../../services/.env
@@ -164,20 +204,9 @@ services:
   #       service: gundeck
   #       executable: gundeck
   #   entrypoint: 'sh -c "while true; do gundeck -c /config/gundeck.yml; sleep 5; done"'
-  #   # TODO: Create queue during startup too
-  #   # aws --no-verify --endpoint-url="https://localhost:11001" sqs create-queue --queue-name local-gundeck-events
   #   links:
   #     - localstack_sqs:sqs.eu-west-1.amazonaws.com
   #   ports:
   #     - 8086:8086
   #   volumes:
   #     - ./conf:/config
-  # gundeck-schema:
-  #   env_file: ../../services/.env
-  #   build:
-  #     context: ../..
-  #     dockerfile: build/alpine/Dockerfile
-  #     args:
-  #       service: gundeck
-  #       executable: gundeck-schema
-  #   entrypoint: 'sh -c "until gundeck-schema --host cassandra --keyspace gundeck_test --replication-factor 1; do echo \"DB still not up, retrying in 5 secs\"; sleep 5; done"'
