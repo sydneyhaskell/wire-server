@@ -202,6 +202,26 @@ postProtoOtrMessage g u d c rec = let m = runPut (encodeMessage otrMessage) in p
             sndr = Proto.fromClientId d
         in Proto.newOtrMessage sndr rcps & Proto.newOtrMessageData ?~ "data"
 
+
+postOtrBroadcastMessage :: (Request -> Request) -> Galley -> UserId -> ClientId -> [(UserId, ClientId, Text)] -> Http ResponseLBS
+postOtrBroadcastMessage f g u d rec = post $ g
+    . f
+    . paths ["broadcast", "otr", "messages"]
+    . zUser u . zConn "conn"
+    . zType "access"
+    . json msg
+  where
+    msg = object
+        [ "sender"     .= d
+        , "recipients" .= (HashMap.map toJSON . HashMap.fromListWith HashMap.union $ map mkOtrMessage rec)
+        , "data"       .= Just ("data" :: Text)
+        ]
+
+    mkOtrMessage (usr, clt, m) = (fn usr, HashMap.singleton (fn clt) m)
+
+    fn :: (FromByteString a, ToByteString a) => a -> Text
+    fn = fromJust . fromByteString . toByteString'
+
 getConvs :: Galley -> UserId -> Maybe (Either [ConvId] ConvId) -> Maybe Int32 -> Http ResponseLBS
 getConvs g u r s = get $ g
     . path "/conversations"

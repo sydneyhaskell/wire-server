@@ -23,6 +23,8 @@ module Galley.API.Update
       -- * Talking
     , postOtrMessage
     , postProtoOtrMessage
+    , postOtrBroadcast
+    , postProtoOtrBroadcast
     , isTyping
 
       -- * External Services
@@ -72,6 +74,7 @@ import qualified Galley.Data.Types    as Data
 import qualified Galley.External      as External
 import qualified Galley.Types.Clients as Clients
 import qualified Galley.Types.Proto   as Proto
+import qualified Galley.API.Teams     as Teams
 
 acceptConv :: UserId ::: Maybe ConnId ::: ConvId -> Galley Response
 acceptConv (usr ::: conn ::: cnv) = do
@@ -221,6 +224,65 @@ postProtoOtrMessage (zusr ::: zcon ::: cnv ::: val ::: req ::: _) =
 postOtrMessage :: UserId ::: ConnId ::: ConvId ::: OtrFilterMissing ::: Request ::: JSON -> Galley Response
 postOtrMessage (zusr ::: zcon ::: cnv ::: val ::: req ::: _) =
     postNewOtrMessage zusr (Just zcon) cnv val =<< fromBody req invalidPayload
+
+postOtrBroadcast :: UserId ::: ConnId ::: OtrFilterMissing ::: Request ::: JSON -> Galley Response
+postOtrBroadcast (zusr ::: zcon ::: val ::: req ::: _) =
+    postNewOtrBroadcast zusr (Just zcon) val =<< fromBody req invalidPayload
+
+postProtoOtrBroadcast :: UserId ::: ConnId ::: OtrFilterMissing ::: Request ::: JSON -> Galley Response
+postProtoOtrBroadcast (zusr ::: zcon ::: val ::: req ::: _) =
+    Proto.toNewOtrMessage <$> fromProtoBody req invalidPayload >>=
+    postNewOtrBroadcast zusr (Just zcon) val
+
+-- TODO reduce duplication with postNewOtrMessage
+postNewOtrBroadcast :: UserId -> Maybe ConnId -> OtrFilterMissing -> NewOtrMessage -> Galley Response
+postNewOtrBroadcast usr con val msg = do
+    let sender = newOtrSender msg
+    let recvrs = newOtrRecipients msg
+    now <- liftIO getCurrentTime
+    withValidOtrBroadcastRecipients usr sender recvrs val now $ \rs -> do
+        let (_, toUsers) = foldr (newMessage now) ([],[]) rs
+        pushSome (catMaybes toUsers)
+  where
+    newMessage now (m, c, t) ~(toBots, toUsers) =
+        let o = OtrMessage
+              { otrSender     = newOtrSender msg
+              , otrRecipient  = c
+              , otrCiphertext = t
+              , otrData       = newOtrData msg
+              }
+            rSelfConv = Id (toUUID (memId m)) -- assumes SelfConversationId == UserId
+            e = Event OtrMessageAdd rSelfConv usr now (Just $ EdOtrMessage o)
+            r = recipient m & recipientClients .~ [c]
+        in case newBotMember m of
+            Just  b -> ((b,e):toBots, toUsers)
+            Nothing ->
+                let p = newPush (evtFrom e) (ConvEvent e) [r] <&>
+                        set pushConn con
+                      . set pushNativePriority (newOtrNativePriority msg)
+                      . set pushRoute          (bool RouteDirect RouteAny (newOtrNativePush msg))
+                      . set pushTransient      (newOtrTransient msg)
+                in (toBots, p:toUsers)
+
+withValidOtrBroadcastRecipients
+    :: UserId
+    -> ClientId
+    -> OtrRecipients
+    -> OtrFilterMissing
+    -> UTCTime
+    -> ([(Member, ClientId, Text)] -> Galley ())
+    -> Galley Response
+withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam usr $ \tid -> do
+    tMembers <- fmap (view userId) <$> Data.teamMembers tid
+    let contacts = []-- TODO lookup contacts from brig
+    let users = tMembers ++ contacts
+    let membs = Data.newMember <$> users
+    clts  <- Data.lookupClients users
+    case checkOtrRecipients usr clt rcps membs clts val now of
+        ValidOtrRecipients   m r -> go r >> return (json m & setStatus status201)
+        MissingOtrRecipients m   -> return (json m & setStatus status412)
+        InvalidOtrSenderUser     -> throwM convNotFound
+        InvalidOtrSenderClient   -> throwM unknownClient
 
 postNewOtrMessage :: UserId -> Maybe ConnId -> ConvId -> OtrFilterMissing -> NewOtrMessage -> Galley Response
 postNewOtrMessage usr con cnv val msg = do
@@ -475,4 +537,3 @@ checkOtrRecipients usr sid prs vms vcs val now
         OtrIgnoreAllMissing -> Clients.nil
         OtrReportMissing us -> Clients.filter (`Set.member` us) miss
         OtrIgnoreMissing us -> Clients.filter (`Set.notMember` us) miss
-
