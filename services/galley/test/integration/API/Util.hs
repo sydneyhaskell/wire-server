@@ -543,3 +543,6 @@ randomEmail :: MonadIO m => m Email
 randomEmail = do
     uid <- liftIO nextRandom
     return $ Email ("success+" <> UUID.toText uid) "simulator.amazonses.com"
+
+selfConv :: UserId -> Id C
+selfConv u = Id (toUUID u)

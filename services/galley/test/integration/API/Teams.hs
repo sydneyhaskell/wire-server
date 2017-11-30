@@ -752,36 +752,31 @@ checkConvMemberLeaveEvent cid usr w = WS.assertMatch_ timeout w $ \notif -> do
 
 postCryptoBroadcastMessage1 :: Galley -> Brig -> Cannon -> Maybe Aws.Env -> Http ()
 postCryptoBroadcastMessage1 g b c a = do
-    -- Team1: Alice, Bob. Team2: Carlos. Connect Alice,Carlos,Dan
-    (alice, ac) <- randomUserWithClient b (someLastPrekeys !! 0)
-    (bob,   bc) <- randomUserWithClient b (someLastPrekeys !! 1)
-    (carlos,cc) <- randomUserWithClient b (someLastPrekeys !! 2)
-    (dan,    _) <- randomUserWithClient b (someLastPrekeys !! 3)
+    -- Team1: Alice, Bob. Team2: Charlie. Regular user: Dan. Connect Alice,Charlie,Dan
+    (alice,  ac) <- randomUserWithClient b (someLastPrekeys !! 0)
+    (bob,    bc) <- randomUserWithClient b (someLastPrekeys !! 1)
+    (charlie,cc) <- randomUserWithClient b (someLastPrekeys !! 2)
+    (dan,    dc) <- randomUserWithClient b (someLastPrekeys !! 3)
     tid1 <- createTeamInternal g "foo" alice
     assertQueue a tActivate
     addTeamMemberInternal g tid1 $ newTeamMember bob (symmPermissions [])
     assertQueue a $ tUpdate 2 [alice]
-    _ <- createTeamInternal g "foo" carlos
+    _ <- createTeamInternal g "foo" charlie
     assertQueue a tActivate
-    connectUsers b alice (list1 carlos [dan])
+    connectUsers b alice (list1 charlie [dan])
 
+    -- Complete: Alice broadcasts a message to Bob,Charlie,Dan
     let t = 3 # Second -- WS receive timeout
-    WS.bracketRN c [alice, bob, carlos, dan] $ \ws@[_, wsB, wsC, _] -> do
-        let m2 = [(bob, bc, "ciphertext2"), (carlos, cc, "ciphertext2")]
+    WS.bracketRN c [alice, bob, charlie, dan] $ \ws@[_, wsB, wsC, wsD] -> do
+        let m2 = [(bob, bc, "ciphertext2"), (charlie, cc, "ciphertext2"), (dan, dc, "ciphertext2")]
         Util.postOtrBroadcastMessage id g alice ac m2 !!! do
             const 201 === statusCode
             assertTrue_ (eqMismatch [] [] [] . decodeBody)
         -- Bob should get the broadcast (team member of alice)
         void . liftIO $ WS.assertMatch t wsB (wsAssertOtr (selfConv bob) alice ac bc "ciphertext2")
-        -- Carlos should get the broadcast (contact of alice and user of teams feature)
-        void . liftIO $ WS.assertMatch t wsC (wsAssertOtr (selfConv carlos) alice ac cc "ciphertext2")
-
-        -- Dan should not get the broadcast (contact of alice but not using teams feature)
+        -- Charlie should get the broadcast (contact of alice and user of teams feature)
+        void . liftIO $ WS.assertMatch t wsC (wsAssertOtr (selfConv charlie) alice ac cc "ciphertext2")
+        -- Dan should get the broadcast (contact of alice and not user of teams feature)
+        void . liftIO $ WS.assertMatch t wsD (wsAssertOtr (selfConv dan) alice ac dc "ciphertext2")
         -- Alice should not get her own broadcast
         WS.assertNoEvent timeout ws
-  where
-    selfConv :: UserId -> Id C
-    selfConv u = Id (toUUID u)
-
---postCryptoBroadCastMessage2 :: Galley -> Brig -> Cannon -> Http ()
---postCryptoBroadCastMessage2 = undefined

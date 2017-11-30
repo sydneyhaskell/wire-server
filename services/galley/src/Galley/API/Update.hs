@@ -274,7 +274,7 @@ withValidOtrBroadcastRecipients
     -> Galley Response
 withValidOtrBroadcastRecipients usr clt rcps val now go = Teams.withBindingTeam usr $ \tid -> do
     tMembers <- fmap (view userId) <$> Data.teamMembers tid
-    let contacts = []-- TODO lookup contacts from brig
+    contacts <- getContactList usr
     let users = tMembers ++ contacts
     let membs = Data.newMember <$> users
     clts  <- Data.lookupClients users
